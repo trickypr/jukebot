@@ -1,5 +1,6 @@
 use std::env;
 
+use auth::Auth as _;
 use commands::{mpd, Response};
 use serenity::all::GuildId;
 use serenity::async_trait;
@@ -9,6 +10,7 @@ use serenity::prelude::*;
 
 use color_eyre::eyre::{Context as _, Result};
 
+mod auth;
 mod commands;
 
 struct Handler;
@@ -16,19 +18,25 @@ struct Handler;
 #[async_trait]
 impl EventHandler for Handler {
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
-        if let Interaction::Command(command) = interaction.clone() {
-            let reply = match command.data.name.as_str() {
-                "album" => commands::album::run(&command.data.options()),
-                "albums" => commands::albums::run(),
-                "artist" => commands::artist::run(&command.data.options()),
-                "artists" => commands::artists::run(),
-                "clear" => commands::clear::run(),
-                "pause" => commands::pause::run(),
-                "play" => commands::play::run(),
-                "playing" => commands::playing::run(),
-                "queue" => commands::queue::run(),
-                "rescan" => commands::rescan::run(),
-                _ => Response::String("Command not implemented :(".to_string()),
+        if let Interaction::Command(command) = interaction {
+            let can_access = command.user.can_use(&ctx).await.unwrap_or(false);
+
+            let reply = if can_access {
+                match command.data.name.as_str() {
+                    "album" => commands::album::run(&command.data.options()),
+                    "albums" => commands::albums::run(),
+                    "artist" => commands::artist::run(&command.data.options()),
+                    "artists" => commands::artists::run(),
+                    "clear" => commands::clear::run(),
+                    "pause" => commands::pause::run(),
+                    "play" => commands::play::run(),
+                    "playing" => commands::playing::run(),
+                    "queue" => commands::queue::run(),
+                    "rescan" => commands::rescan::run(),
+                    _ => Response::String("Command not implemented :(".to_string()),
+                }
+            } else {
+                Response::String("You do not have access :(".to_string())
             };
 
             reply.send(command, ctx).await;
@@ -74,6 +82,7 @@ async fn main() -> Result<()> {
     // Force consume by default
     let mut mpd = mpd()?;
     mpd.consume(true)?;
+    mpd.shuffle(..)?;
     drop(mpd);
 
     let discord_token =
