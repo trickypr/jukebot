@@ -33,6 +33,7 @@ impl EventHandler for Handler {
                     "playing" => commands::playing::run(),
                     "queue" => commands::queue::run(),
                     "rescan" => commands::rescan::run(),
+                    "skip" => commands::skip::run(),
                     _ => Response::String("Command not implemented :(".to_string()),
                 }
             } else {
@@ -67,6 +68,7 @@ impl EventHandler for Handler {
                     commands::playing::register(),
                     commands::queue::register(),
                     commands::rescan::register(),
+                    commands::skip::register(),
                 ],
             )
             .await

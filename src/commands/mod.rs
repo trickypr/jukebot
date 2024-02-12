@@ -18,6 +18,7 @@ pub mod play;
 pub mod playing;
 pub mod queue;
 pub mod rescan;
+pub mod skip;
 
 pub enum Response {
     String(String),
