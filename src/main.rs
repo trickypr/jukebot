@@ -1,12 +1,17 @@
 use std::env;
+use std::time::Duration;
 
 use auth::Auth as _;
 use commands::{mpd, Response};
+use mpd::{Song, State, Status};
 use serenity::all::GuildId;
+use serenity::all::OnlineStatus;
 use serenity::async_trait;
+use serenity::gateway::ActivityData;
 use serenity::model::application::Interaction;
 use serenity::model::gateway::Ready;
 use serenity::prelude::*;
+use tokio;
 
 use color_eyre::eyre::{Context as _, Result};
 
@@ -73,6 +78,49 @@ impl EventHandler for Handler {
             )
             .await
             .expect("Failed to register commands");
+
+        tokio::spawn(async move {
+            fn online_from_status(status: Status) -> OnlineStatus {
+                match status.state {
+                    State::Stop | State::Pause => OnlineStatus::Idle,
+                    State::Play => OnlineStatus::Online,
+                }
+            }
+
+            fn activity_from_song(song: Option<Song>) -> Option<ActivityData> {
+                song.map(|song| {
+                    let song_title = song.title.unwrap_or("no title".to_string());
+                    let song_artist = song.artist.unwrap_or("no artist".to_string());
+                    let song_text = format!("{} - {}", song_title, song_artist);
+
+                    ActivityData::listening(song_text)
+                })
+            }
+
+            loop {
+                let (activity, status) = match mpd() {
+                    Ok(mut mpd) => match (mpd.currentsong(), mpd.status()) {
+                        (Ok(current_song), Ok(status)) => {
+                            (activity_from_song(current_song), online_from_status(status))
+                        }
+                        _ => (
+                            Some(ActivityData::listening(String::from("error"))),
+                            OnlineStatus::DoNotDisturb,
+                        ),
+                    },
+                    Err(err) => {
+                        println!("Error fetching mpd: {err}");
+                        (
+                            Some(ActivityData::listening(String::from("error"))),
+                            OnlineStatus::DoNotDisturb,
+                        )
+                    }
+                };
+
+                ctx.set_presence(activity, status);
+                tokio::time::sleep(Duration::from_secs(5)).await;
+            }
+        });
     }
 }
 
