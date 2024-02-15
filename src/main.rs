@@ -127,7 +127,9 @@ impl EventHandler for Handler {
 #[tokio::main]
 async fn main() -> Result<()> {
     color_eyre::install()?;
-    dotenvy::dotenv()?;
+    if let Err(err) = dotenvy::dotenv() {
+        println!("Failed to read .env file:\n{err}");
+    }
 
     // Force consume by default
     let mut mpd = mpd()?;
